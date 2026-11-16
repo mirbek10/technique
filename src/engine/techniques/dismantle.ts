@@ -87,7 +87,11 @@ export class DismantleTechnique extends BaseTechnique<DismantleState> {
       return;
     }
     if (findCand(ctx, 'slash_pose', this.slot)) this.poseLast = t;
-    const poseOk = t - this.poseLast < CFG.POSE_GRACE;
+    // on a slow camera (≈7 fps) one blurred frame mid-stroke is already longer than POSE_GRACE
+    const frameDt = ctx.track.frameDt;
+    const poseOk = t - this.poseLast < Math.max(CFG.POSE_GRACE, frameDt * 2.6);
+    // ≈ the same stroke duration as MIN_FRAMES at 30 fps, but at least one fast frame
+    const minFrames = Math.max(1, Math.min(CFG.DISMANTLE.MIN_FRAMES, Math.round((CFG.DISMANTLE.MIN_FRAMES / 30) / frameDt)));
     const speedIn = CFG.DISMANTLE.SPEED_IN * ctx.settings.motionScale;
     const speedOut = CFG.DISMANTLE.SPEED_OUT * ctx.settings.motionScale;
 
@@ -111,12 +115,15 @@ export class DismantleTechnique extends BaseTechnique<DismantleState> {
         if (!poseOk) return this.go('SLASH_IDLE', t);
         if (!ctx.fresh) break;
         this.fastFrames = speed > speedIn ? this.fastFrames + 1 : 0;
-        if (this.fastFrames >= CFG.DISMANTLE.MIN_FRAMES) {
+        if (this.fastFrames >= minFrames) {
           // stroke starts where the fingers were just before they accelerated
           let i = this.ht.length - 1;
           while (i > 0 && t - this.ht[i] < 0.09) i--;
           this.sx = this.hx[i];
           this.sy = this.hy[i];
+          // at low fps the stroke may end on the very next frame: start the end point at the current tip
+          this.ex = this.hx[this.hx.length - 1];
+          this.ey = this.hy[this.hy.length - 1];
           this.peak = speed;
           this.strokeT = t;
           this.go('SLASH_DETECTED', t);

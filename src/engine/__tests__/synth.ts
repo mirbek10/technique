@@ -156,7 +156,7 @@ export const BLOOD: HandSpec[] = [
 export class Sim {
   core: TechniqueCore;
   t = 0;
-  readonly dt = 1 / 30;
+  dt = 1 / 30;
   cines: string[] = [];
 
   constructor(settings: Partial<Settings> = {}, fx: Fx = NOOP_FX) {

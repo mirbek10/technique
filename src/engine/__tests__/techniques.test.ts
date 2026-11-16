@@ -137,6 +137,29 @@ describe('Dismantle', () => {
     expect(s.cines).toContain('TRIPLE DISMANTLE');
   });
 
+  it('slow camera (7 fps): a stroke with one blurred/lost frame still cuts', () => {
+    const s = new Sim({ character: 'sukuna' });
+    s.dt = 1 / 7;
+    s.hold([{ ...TWO, cx: 300 }], 1.2);
+    s.frame([{ ...TWO, cx: 480 }]);
+    s.frame(null); // motion blur: MediaPipe loses the hand for one frame
+    s.frame([{ ...TWO, cx: 1000 }]);
+    s.hold([{ ...TWO, cx: 1000 }], 0.6);
+    expect(s.core.dismantle.slashes).toBe(1);
+  });
+
+  it('slow camera (7 fps): a single fast frame cuts, a slow drift does not', () => {
+    const s = new Sim({ character: 'sukuna' });
+    s.dt = 1 / 7;
+    s.hold([{ ...TWO, cx: 300 }], 1.2);
+    s.move([{ ...TWO, cx: 300 }], [{ ...TWO, cx: 700 }], 2);
+    expect(s.core.dismantle.slashes).toBe(0);
+    s.hold([{ ...TWO, cx: 700 }], 0.6);
+    s.frame([{ ...TWO, cx: 1100 }]);
+    s.hold([{ ...TWO, cx: 1100 }], 0.6);
+    expect(s.core.dismantle.slashes).toBe(1);
+  });
+
   it('is not available to Gojo (no conflict with Red)', () => {
     const s = new Sim({ character: 'gojo' });
     s.hold([{ ...TWO, cx: 300 }], 0.4);

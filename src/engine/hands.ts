@@ -85,6 +85,8 @@ export interface TrackFrame {
   primary: HandInfo | null;
   /** last time any hand was visible */
   lastSeen: number;
+  /** smoothed interval between camera frames, s (≈0.033 at 30 fps, ≈0.14 at 7 fps) */
+  frameDt: number;
 }
 
 const PALM_IDS = [0, 5, 9, 13, 17];
@@ -216,9 +218,10 @@ class HandSlot {
     return Math.hypot(v.x - this.accX[i], v.y - this.accY[i]) / dt;
   }
 
-  update(lms: P3[], world: P3[] | undefined, label: string, score: number, t: number, map: VideoMapLike, W: number): void {
+  update(lms: P3[], world: P3[] | undefined, label: string, score: number, t: number, map: VideoMapLike, W: number, frameDt = 1 / 30): void {
     const h = this.info;
-    const reacquired = t - h.lastSeen > 0.25;
+    // one missed detection (motion blur on a fast stroke) must not wipe the motion history on a slow camera
+    const reacquired = t - h.lastSeen > Math.max(0.25, frameDt * 2.6);
     if (reacquired) {
       this.resetMotion();
       h.since = t;
@@ -312,7 +315,7 @@ export class HandProcessor {
   readonly frame: TrackFrame;
 
   constructor() {
-    this.frame = { t: 0, hands: [], slots: [this.slots[0].info, this.slots[1].info], primary: null, lastSeen: -Infinity };
+    this.frame = { t: 0, hands: [], slots: [this.slots[0].info, this.slots[1].info], primary: null, lastSeen: -Infinity, frameDt: 1 / 30 };
   }
 
   /** Assign detections to slots by proximity to where each slot's hand was, then handedness. */
@@ -339,13 +342,15 @@ export class HandProcessor {
 
   process(det: Detection | null, t: number, map: VideoMapLike, W: number): TrackFrame {
     const f = this.frame;
+    const gap = t - f.t;
+    if (gap > 1e-3 && gap < 0.5) f.frameDt += (gap - f.frameDt) * 0.15;
     f.t = t;
     const seen = [false, false];
     if (det && det.landmarks.length > 0) {
       const slotsOf = this.assign(det, t, map, W);
       for (let i = 0; i < slotsOf.length; i++) {
         const cat = det.handedness?.[i]?.[0];
-        this.slots[slotsOf[i]].update(det.landmarks[i], det.world?.[i], cat?.categoryName ?? '', cat?.score ?? 1, t, map, W);
+        this.slots[slotsOf[i]].update(det.landmarks[i], det.world?.[i], cat?.categoryName ?? '', cat?.score ?? 1, t, map, W, f.frameDt);
         seen[slotsOf[i]] = true;
       }
       this.lastSeen = t;

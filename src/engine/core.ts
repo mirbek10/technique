@@ -131,7 +131,7 @@ export class TechniqueCore implements RosterRules {
     if (fresh) {
       this.track = this.hands.process(det, t, map, W);
       this.cands = this.classifier.classify(this.track);
-      this.resolution = this.resolver.resolve(this.cands, this.techs, this, this.settings, t);
+      this.resolution = this.resolver.resolve(this.cands, this.techs, this, this.settings, t, this.track.frameDt);
       grant = this.resolution.grant;
       if (grant && this.resolution.preempt) this.byId[this.resolution.preempt].cancel(t, `прервано: ${grant.tech}`);
     }

@@ -53,7 +53,9 @@ export class GestureResolver {
     this.winKey = null;
   }
 
-  resolve(cands: GestureCandidate[], techs: Technique[], rules: RosterRules, settings: Settings, t: number): Resolution {
+  resolve(cands: GestureCandidate[], techs: Technique[], rules: RosterRules, settings: Settings, t: number, frameDt = 1 / 30): Resolution {
+    // on a slow camera consecutive frames are further apart than DROPOUT: the gap must cover at least ~one missed frame
+    const dropout = Math.max(CFG.RESOLVER.DROPOUT, frameDt * 1.6);
     const owners = techs.filter((x) => x.engaged());
     const rejected: string[] = [];
     const options: Option[] = [];
@@ -104,7 +106,7 @@ export class GestureResolver {
     let winner = '—';
     if (top) {
       const key = `${top.tech.meta.id}:${top.cand.id}`;
-      if (key !== this.winKey || t - this.winLast > CFG.RESOLVER.DROPOUT) {
+      if (key !== this.winKey || t - this.winLast > dropout) {
         this.winKey = key;
         this.winSince = t;
       }
@@ -126,7 +128,7 @@ export class GestureResolver {
         preempt = top.preempt ? top.preempt.meta.id : null;
         this.winKey = null;
       }
-    } else if (t - this.winLast > CFG.RESOLVER.DROPOUT) this.winKey = null;
+    } else if (t - this.winLast > dropout) this.winKey = null;
 
     this.last = { grant, preempt, owner: owners.map((o) => o.meta.id), winner, holdMs, rejected };
     return this.last;
